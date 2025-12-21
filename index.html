@@ -21,10 +21,10 @@ tailwind.config = {
   theme: {
     extend: {
       colors: {
-        primary: '#0ea5e9',
-        primaryDark: '#0284c7',
-        primaryLight: '#e0f2fe',
-        primaryBorder: '#bae6fd'
+        brand: '#0ea5e9',        // 主藍
+        brandDark: '#0284c7',    // hover
+        brandLight: '#e0f2fe',   // 淡底
+        brandBorder: '#bae6fd'
       }
     }
   }
@@ -32,7 +32,9 @@ tailwind.config = {
 </script>
 
 <style>
-body { font-family: "Noto Sans TC", system-ui, -apple-system; }
+body {
+  font-family: "Noto Sans TC", system-ui, -apple-system;
+}
 </style>
 </head>
 
@@ -45,7 +47,7 @@ const APPS_SCRIPT_URL =
 
 const { useState, useEffect, useMemo } = React;
 
-/* ===== 畫休原因 Modal ===== */
+/* ===== 畫休原因視窗（沿用系統風格） ===== */
 function ReasonModal({ open, required, onClose, onSubmit }) {
   const [reason, setReason] = useState("");
 
@@ -82,7 +84,7 @@ function ReasonModal({ open, required, onClose, onSubmit }) {
           <button
             disabled={required && !reason}
             onClick={() => onSubmit(reason)}
-            className="px-3 py-1 text-sm rounded text-white bg-primary disabled:opacity-50"
+            className="px-3 py-1 text-sm rounded text-white bg-brand disabled:opacity-50"
           >確認</button>
         </div>
       </div>
@@ -90,15 +92,15 @@ function ReasonModal({ open, required, onClose, onSubmit }) {
   );
 }
 
-/* ===== 主程式 ===== */
+/* ===== 主 App（UI 結構保留） ===== */
 function App() {
   const [months, setMonths] = useState([]);
   const [currentMonth, setCurrentMonth] = useState("");
   const [dates, setDates] = useState([]);
   const [schedule, setSchedule] = useState([]);
-  const [currentUser, setCurrentUser] = useState("");
 
   const [filterStore, setFilterStore] = useState("all");
+  const [currentUser, setCurrentUser] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTarget, setModalTarget] = useState(null);
@@ -179,8 +181,8 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* Header */}
-      <header className="bg-primary text-white px-4 py-3 flex justify-between items-center shadow">
+      {/* Header（原結構，改藍色） */}
+      <header className="bg-brand text-white px-4 py-3 flex justify-between items-center shadow">
         <div className="font-bold text-lg flex items-center gap-2">
           <i className="fa-solid fa-calendar-days"></i>
           排班系統
@@ -197,7 +199,7 @@ function App() {
         </select>
       </header>
 
-      {/* Filter */}
+      {/* 分店篩選（保留原 UI） */}
       <div className="bg-white p-2 border-b flex gap-2">
         {["all","湖口","成功"].map(s => (
           <button
@@ -205,7 +207,7 @@ function App() {
             onClick={() => setFilterStore(s)}
             className={`px-3 py-1 rounded text-sm border
               ${filterStore===s
-                ? "bg-primaryLight text-primary border-primaryBorder"
+                ? "bg-brandLight text-brand border-brandBorder"
                 : "bg-white text-gray-500 border-gray-200"
               }`}
           >
@@ -214,7 +216,7 @@ function App() {
         ))}
       </div>
 
-      {/* Table */}
+      {/* 排班表（橫向月曆＋sticky） */}
       <div className="flex-1 overflow-auto bg-white">
         <table className="border-collapse min-w-max w-full text-sm">
           <thead className="sticky top-0 bg-slate-50 z-10">
@@ -229,14 +231,17 @@ function App() {
           </thead>
           <tbody>
             {filteredSchedule.map(user => (
-              <tr key={user.name} className={user.name===currentUser ? "bg-primaryLight/50" : ""}>
+              <tr
+                key={user.name}
+                className={user.name===currentUser ? "bg-brandLight/50" : ""}
+              >
                 <td className="sticky left-0 bg-white border p-2 font-medium z-10">
                   {user.name}
                 </td>
                 {dates.map(d => (
                   <td
                     key={d}
-                    className="border text-center cursor-pointer hover:bg-primaryLight"
+                    className="border text-center cursor-pointer hover:bg-brandLight"
                     onClick={() => onCellClick(user, d)}
                   >
                     {user.shifts[d] === "休" ? "🛌" : ""}
