@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>東森寵物排班管理系統</title>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6;
+            -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+        }
+        .shift-cell {
+            transition: all 0.2s;
+        }
+        .shift-cell:active {
+            transform: scale(0.90);
+        }
+        /* Hide scrollbar for cleaner mobile look but allow scrolling */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* Custom Scrollbar for the table */
+        .custom-scroll::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+        select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        /* Mobile Sticky adjustments */
+        .sticky-col-header {
+            z-index: 30 !important;
+        }
+        .sticky-col-cell {
+            z-index: 20 !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // ================= CONFIGURATION =================
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyEwMHBO8jVA0IoS_HdzNFHsyzCz-lxVmW3s9jPcK8gaZDVq1JT5ieeMnQT3V-oNy_U/exec"; 
+        
+        // 店別關鍵字設定
+        const STORE_FILTERS = [
+            { id: 'all', label: '全部分店' },
+            { id: '湖口', label: '湖口中山' },
+            { id: '成功', label: '竹北成功' }
+        ];
+        // =================================================
+
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // 模擬數據
+        const MOCK_MONTHS = ["2025-07", "2025-06"];
+        const MOCK_DB = {
+            "2025-06": {
+                dates: Array.from({length: 30}, (_, i) => `2025/06/${String(i+1).padStart(2, '0')}`),
+                schedule: [
+                    { name: "店長", store: "湖口", shifts: { "2025/06/01": "早", "2025/06/02": "早" } },
+                    { name: "美容師A", store: "湖口", shifts: { "2025/06/01": "晚", "2025/06/02": "晚" } },
+                    { name: "店員B", store: "成功", shifts: { "2025/06/01": "全", "2025/06/04": "休" } },
+                    { name: "店員C", store: "成功", shifts: { "2025/06/01": "休", "2025/06/02": "全" } },
+                    { name: "工讀生D", store: "湖口", shifts: { "2025/06/01": "晚", "2025/06/05": "休" } },
+                ]
+            },
+            "2025-07": {
+                dates: Array.from({length: 31}, (_, i) => `2025/07/${String(i+1).padStart(2, '0')}`),
+                schedule: [
+                    { name: "店長", store: "湖口", shifts: { "2025/07/01": "早", "2025/07/02": "休" } },
+                ]
+            }
+        };
+
+        const ShiftBadge = ({ type, onClick, isEditable, isSmall }) => {
+            let colorClass = "bg-gray-50 text-gray-300";
+            let icon = null;
+
+            switch(type) {
+                case "早": 
+                    colorClass = "bg-amber-100 text-amber-700 border border-amber-200"; 
+                    icon = "fa-sun";
+                    break;
+                case "晚": 
+                    colorClass = "bg-indigo-100 text-indigo-700 border border-indigo-200"; 
+                    icon = "fa-moon";
+                    break;
+                case "全": 
+                    colorClass = "bg-emerald-100 text-emerald-700 border border-emerald-200"; 
+                    icon = "fa-briefcase";
+                    break;
+                case "休": 
+                    colorClass = "bg-rose-100 text-rose-700 border border-rose-200 font-bold"; 
+                    icon = "fa-bed";
+                    break;
+                default:
+                    if(isEditable) colorClass = "bg-white border border-dashed border-gray-300 active:bg-gray-100 cursor-pointer";
+                    break;
+            }
+
+            const sizeClass = isSmall ? "w-8 h-8 text-xs" : "w-10 h-10 md:w-11 md:h-11 text-sm";
+
+            return (
+                <div 
+                    onClick={onClick}
+                    className={`
+                        ${colorClass} ${sizeClass}
+                        ${isEditable ? 'cursor-pointer' : ''}
+                        rounded-lg flex items-center justify-center transition-all duration-200 mx-auto
+                        shadow-sm
+                    `}
+                >
+                    {icon ? <i className={`fa-solid ${icon}`}></i> : (isEditable ? <i className="fa-solid fa-plus text-gray-300 scale-75"></i> : "")}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [initLoading, setInitLoading] = useState(true);
+            const [scheduleLoading, setScheduleLoading] = useState(false);
+            const [months, setMonths] = useState([]);
+            const [currentMonth, setCurrentMonth] = useState("");
+            const [scheduleData, setScheduleData] = useState({ dates: [], schedule: [] });
+            
+            // User & Mode State
+            const [currentUser, setCurrentUser] = useState("");
+            const [viewMode, setViewMode] = useState("view"); // 'view', 'edit'
+            const [statusMsg, setStatusMsg] = useState("");
+            
+            // Filter State
+            const [filterName, setFilterName] = useState("");
+            const [filterStore, setFilterStore] = useState("all");
+            const [showFilters, setShowFilters] = useState(false); // Mobile toggle
+
+            // Refs for scrolling
+            const tableContainerRef = useRef(null);
+
+            useEffect(() => {
+                fetchMonths();
+            }, []);
+
+            useEffect(() => {
+                if (currentMonth) {
+                    fetchSchedule(currentMonth);
+                }
+            }, [currentMonth]);
+
+            const fetchMonths = async () => {
+                setInitLoading(true);
+                if (!APPS_SCRIPT_URL) {
+                    setTimeout(() => {
+                        setMonths(MOCK_MONTHS);
+                        setCurrentMonth(MOCK_MONTHS[0]);
+                        setInitLoading(false);
+                    }, 600);
+                    return;
+                }
+                try {
+                    // 加入時間戳記避免快取
+                    const response = await fetch(`${APPS_SCRIPT_URL}?action=getMonths&_t=${new Date().getTime()}`);
+                    const data = await response.json();
+                    if (data.status === "success") {
+                        setMonths(data.months);
+                        if (data.months.length > 0) setCurrentMonth(data.months[0]);
+                    } else {
+                        setStatusMsg("無法讀取月份: " + (data.message || "未知錯誤"));
+                    }
+                } catch (e) {
+                    setStatusMsg("連線錯誤 (取得月份失敗)");
+                    console.error("Fetch Months Error:", e);
+                } finally {
+                    setInitLoading(false);
+                }
+            };
+
+            const fetchSchedule = async (month) => {
+                setScheduleLoading(true);
+                setScheduleData({ dates: [], schedule: [] }); 
+
+                if (!APPS_SCRIPT_URL) {
+                    setTimeout(() => {
+                        const data = MOCK_DB[month] || { dates: [], schedule: [] };
+                        setScheduleData(data);
+                        if(data.schedule.length > 0 && !currentUser) setCurrentUser(data.schedule[0].name);
+                        setScheduleLoading(false);
+                    }, 500);
+                    return;
+                }
+                try {
+                    // 加入時間戳記避免快取
+                    const response = await fetch(`${APPS_SCRIPT_URL}?action=getSchedule&sheetName=${encodeURIComponent(month)}&_t=${new Date().getTime()}`);
+                    const data = await response.json();
+                    if (data.status === "success") {
+                        setScheduleData({ dates: data.dates, schedule: data.schedule });
+                        
+                        // 自動選擇第一位員工 (如果是空字串或還沒選)
+                        if (data.schedule.length > 0 && !currentUser) {
+                            // 嘗試過濾掉標題列找到第一個人
+                            const firstPerson = data.schedule.find(u => u.name !== '姓名');
+                            if (firstPerson) setCurrentUser(firstPerson.name);
+                        }
+                    } else {
+                        setStatusMsg(`讀取失敗: ${data.message}`);
+                    }
+                } catch (e) {
+                    setStatusMsg("連線錯誤 (取得班表失敗)");
+                    console.error("Fetch Schedule Error:", e);
+                } finally {
+                    setScheduleLoading(false);
+                }
+            };
+
+            const handleShiftUpdate = async (name, date, currentType) => {
+                if (viewMode === 'view') return;
+                if (name !== currentUser) {
+                    alert("您只能畫自己的假喔！");
+                    return;
+                }
+                const newType = currentType === "休" ? "" : "休";
+                
+                // Optimistic Update
+                setScheduleData(prev => ({
+                    ...prev,
+                    schedule: prev.schedule.map(u => u.name === name ? {...u, shifts: {...u.shifts, [date]: newType}} : u)
+                }));
+
+                if (!APPS_SCRIPT_URL) return;
+
+                try {
+                    // 修正：使用最單純的 text/plain，不要加 charset=utf-8，避免部分瀏覽器/GAS 環境的 CORS 問題
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "text/plain", 
+                        },
+                        body: JSON.stringify({ action: "updateShift", sheetName: currentMonth, name, date, type: newType })
+                    });
+                    
+                    // 嘗試解析 JSON，如果後端回傳 HTML 錯誤頁面，這裡會拋出錯誤
+                    const text = await response.text();
+                    let result;
+                    try {
+                        result = JSON.parse(text);
+                    } catch (err) {
+                        throw new Error("後端回應非 JSON 格式: " + text.substring(0, 100));
+                    }
+
+                    if (result.status !== "success") {
+                        alert("更新失敗：" + result.message);
+                        fetchSchedule(currentMonth); // Rollback
+                    }
+                } catch (e) {
+                    console.error("Update Error:", e);
+                    alert("連線失敗，無法儲存。請檢查網路或重新整理。");
+                    fetchSchedule(currentMonth); // Rollback
+                }
+            };
+
+            // 篩選邏輯 (寬鬆模式)
+            const filteredSchedule = useMemo(() => {
+                return scheduleData.schedule.filter(user => {
+                    // 強制轉型為字串避免 null/undefined 錯誤
+                    const userName = String(user.name || "").trim();
+                    const userStore = String(user.store || "").trim();
+
+                    // 1. 防呆：過濾掉名字是「姓名」的標題列
+                    if (userName === '姓名' || userName === '') return false;
+
+                    // 2. 姓名搜尋
+                    const nameMatch = userName.toLowerCase().includes(filterName.toLowerCase());
+                    
+                    // 3. 店別篩選
+                    if (filterStore === 'all') {
+                        return nameMatch;
+                    }
+                    
+                    // 如果有選店別：檢查 store 欄位 OR 名字是否包含店名
+                    const storeMatch = userStore.includes(filterStore) || userName.includes(filterStore);
+                    return nameMatch && storeMatch;
+                });
+            }, [scheduleData.schedule, filterName, filterStore]);
+
+            const userList = useMemo(() => scheduleData.schedule
+                .filter(u => u.name !== '姓名' && u.name) // 過濾掉標題列和空值
+                .map(u => u.name), 
+            [scheduleData]);
+
+            // 滾動到今天
+            const scrollToToday = () => {
+                if (!tableContainerRef.current) return;
+                const today = new Date();
+                const todayStr = `${(today.getMonth() + 1)}/${today.getDate()}`;
+                
+                // 尋找表頭中的日期文字
+                const headers = Array.from(tableContainerRef.current.querySelectorAll('th'));
+                const todayHeader = headers.find(th => th.textContent.includes(todayStr));
+                
+                if (todayHeader) {
+                    todayHeader.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                } else {
+                    alert("找不到今天的日期");
+                }
+            };
+
+            const formatDate = (dateStr) => {
+                const date = new Date(dateStr);
+                const day = date.getDate();
+                const month = date.getMonth() + 1;
+                const weekDay = ["日","一","二","三","四","五","六"][date.getDay()];
+                const isWeekend = weekDay === '六' || weekDay === '日';
+                
+                return (
+                    <div className="flex flex-col items-center justify-center h-full">
+                        <span className="text-[10px] text-gray-400 leading-none mb-1">{month}月</span>
+                        <span className={`text-sm font-bold leading-none ${isWeekend ? 'text-red-500' : 'text-gray-700'}`}>{day}</span>
+                        <span className={`text-[10px] mt-1 leading-none ${isWeekend ? 'text-red-400' : 'text-gray-400'}`}>{weekDay}</span>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="flex flex-col h-screen bg-gray-50 text-gray-800">
+                    
+                    {/* 1. Top Navigation Bar (Fixed) */}
+                    <header className="bg-orange-500 text-white shadow-md z-40 shrink-0">
+                        <div className="flex items-center justify-between px-4 py-3">
+                            <div className="flex items-center gap-2">
+                                <i className="fa-solid fa-paw text-xl"></i>
+                                <span className="font-bold text-lg tracking-wide">排班系統</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {/* Mobile Filter Toggle */}
+                                <button 
+                                    onClick={() => setShowFilters(!showFilters)}
+                                    className={`md:hidden p-2 rounded-full transition-colors ${showFilters ? 'bg-orange-600' : 'hover:bg-orange-400'}`}
+                                >
+                                    <i className="fa-solid fa-filter"></i>
+                                </button>
+                                <div className="hidden md:block text-xs bg-orange-600 px-2 py-1 rounded">
+                                    {currentMonth || "Loading..."}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Mobile Collapsible Filter Area */}
+                        <div className={`md:hidden bg-orange-50 overflow-hidden transition-all duration-300 ease-in-out border-b border-orange-100 ${showFilters ? 'max-h-64' : 'max-h-0'}`}>
+                            <div className="p-4 space-y-3">
+                                {/* Filter Store */}
+                                <div className="flex bg-white rounded-lg p-1 border border-orange-100 shadow-sm">
+                                    {STORE_FILTERS.map(filter => (
+                                        <button
+                                            key={filter.id}
+                                            onClick={() => setFilterStore(filter.id)}
+                                            className={`flex-1 py-2 text-xs font-medium rounded-md transition-all ${filterStore === filter.id ? 'bg-orange-100 text-orange-700' : 'text-gray-500'}`}
+                                        >
+                                            {filter.label.replace('全部', '') || '全部'}
+                                        </button>
+                                    ))}
+                                </div>
+                                {/* Filter Name */}
+                                <div className="relative">
+                                    <i className="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-gray-400 text-sm"></i>
+                                    <input 
+                                        type="text" 
+                                        placeholder="搜尋姓名..." 
+                                        value={filterName}
+                                        onChange={(e) => setFilterName(e.target.value)}
+                                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-orange-500"
+                                    />
+                                </div>
+                                <div className="flex gap-2">
+                                    <select 
+                                        value={currentMonth} 
+                                        onChange={(e) => setCurrentMonth(e.target.value)}
+                                        className="flex-1 bg-white border border-gray-200 rounded-lg py-2 px-3 text-sm text-gray-700"
+                                    >
+                                        {months.map(m => <option key={m} value={m}>{m}</option>)}
+                                    </select>
+                                    <button onClick={scrollToToday} className="bg-white border border-gray-200 text-orange-600 px-4 py-2 rounded-lg text-sm">
+                                        <i className="fa-solid fa-calendar-day"></i> 今天
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* 2. Main Content Area */}
+                    <main className="flex-1 overflow-hidden flex flex-col relative w-full max-w-7xl mx-auto">
+                        
+                        {/* Desktop Toolbar (Hidden on Mobile) */}
+                        <div className="hidden md:flex items-center justify-between p-4 bg-white border-b border-gray-200 gap-4">
+                            <div className="flex gap-3 items-center">
+                                {/* Store Filter */}
+                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                    {STORE_FILTERS.map(filter => (
+                                        <button
+                                            key={filter.id}
+                                            onClick={() => setFilterStore(filter.id)}
+                                            className={`px-3 py-1.5 text-sm rounded-md transition-all ${filterStore === filter.id ? 'bg-white shadow-sm text-gray-800 font-medium' : 'text-gray-500 hover:text-gray-700'}`}
+                                        >
+                                            {filter.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                {/* Name Search */}
+                                <div className="relative">
+                                    <i className="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-gray-400 text-xs"></i>
+                                    <input 
+                                        type="text" 
+                                        placeholder="搜尋姓名" 
+                                        value={filterName}
+                                        onChange={(e) => setFilterName(e.target.value)}
+                                        className="pl-8 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-orange-400 w-32 focus:w-48 transition-all"
+                                    />
+                                </div>
+                                <button onClick={scrollToToday} className="text-gray-500 hover:text-orange-500 text-sm px-2">
+                                    <i className="fa-solid fa-calendar-day mr-1"></i>跳至今天
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                {/* User Selector */}
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs text-gray-500">我是:</label>
+                                    <select 
+                                        value={currentUser} 
+                                        onChange={(e) => setCurrentUser(e.target.value)}
+                                        className="bg-gray-50 border border-gray-200 rounded py-1 pl-2 pr-6 text-sm outline-none focus:border-orange-400"
+                                    >
+                                        <option value="">選擇員工</option>
+                                        {userList.map(u => <option key={u} value={u}>{u}</option>)}
+                                    </select>
+                                </div>
+                                <div className="h-6 w-px bg-gray-200"></div>
+                                {/* Mode Toggle */}
+                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                    <button 
+                                        onClick={() => setViewMode("view")}
+                                        className={`px-3 py-1.5 text-sm rounded-md ${viewMode === 'view' ? 'bg-white shadow text-gray-800' : 'text-gray-400'}`}
+                                    >
+                                        瀏覽
+                                    </button>
+                                    <button 
+                                        onClick={() => setViewMode("edit")}
+                                        className={`px-3 py-1.5 text-sm rounded-md ${viewMode === 'edit' ? 'bg-white shadow text-orange-600 font-medium' : 'text-gray-400'}`}
+                                    >
+                                        畫休
+                                    </button>
+                                </div>
+                                {/* Month Selector */}
+                                <select 
+                                    value={currentMonth} 
+                                    onChange={(e) => setCurrentMonth(e.target.value)}
+                                    className="bg-white border border-gray-200 text-gray-700 py-1.5 px-3 rounded-lg text-sm font-bold shadow-sm outline-none"
+                                >
+                                    {months.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Status Message */}
+                        {statusMsg && (
+                            <div className="bg-red-50 text-red-600 px-4 py-2 text-xs flex justify-between items-center border-b border-red-100">
+                                <span><i className="fa-solid fa-circle-exclamation mr-1"></i>{statusMsg}</span>
+                                <button onClick={() => setStatusMsg("")}><i className="fa-solid fa-xmark"></i></button>
+                            </div>
+                        )}
+
+                        {/* Mobile Actions Bar (Sticky under header) */}
+                        <div className="md:hidden flex justify-between items-center px-4 py-2 bg-white border-b border-gray-200 shadow-sm shrink-0">
+                            <div className="flex items-center gap-2 flex-1">
+                                <i className="fa-solid fa-user text-gray-400 text-xs"></i>
+                                <select 
+                                    value={currentUser} 
+                                    onChange={(e) => setCurrentUser(e.target.value)}
+                                    className="w-full bg-transparent text-sm font-medium text-gray-700 outline-none border-none p-0"
+                                >
+                                    <option value="">請選擇您的姓名</option>
+                                    {userList.map(u => <option key={u} value={u}>{u}</option>)}
+                                </select>
+                            </div>
+                            <button 
+                                onClick={() => setViewMode(viewMode === 'view' ? 'edit' : 'view')}
+                                className={`ml-3 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${viewMode === 'edit' ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-gray-50 border-gray-200 text-gray-600'}`}
+                            >
+                                {viewMode === 'edit' ? <><i className="fa-solid fa-pen mr-1"></i>畫休中</> : <><i className="fa-solid fa-eye mr-1"></i>瀏覽中</>}
+                            </button>
+                        </div>
+
+                        {/* Table Area */}
+                        <div className="flex-1 overflow-hidden relative bg-white">
+                            {initLoading || scheduleLoading ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-50">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-orange-500 border-t-transparent mb-2"></div>
+                                    <span className="text-xs text-gray-500">載入資料中...</span>
+                                </div>
+                            ) : null}
+
+                            {scheduleData.schedule.length > 0 ? (
+                                <div 
+                                    ref={tableContainerRef}
+                                    className="h-full overflow-auto custom-scroll"
+                                >
+                                    <table className="border-collapse w-full min-w-max">
+                                        <thead className="sticky top-0 z-30 bg-gray-50 shadow-sm">
+                                            <tr>
+                                                <th className="sticky left-0 z-40 bg-gray-50 p-0 border-b border-gray-200 border-r min-w-[100px] w-[100px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                                    <div className="h-14 flex items-center justify-center text-xs text-gray-500 font-medium">
+                                                        姓名
+                                                    </div>
+                                                </th>
+                                                {scheduleData.dates.map(date => (
+                                                    <th key={date} className="bg-gray-50 p-1 min-w-[50px] w-[50px] border-b border-r border-gray-100 last:border-r-0 h-14 align-top">
+                                                        {formatDate(date)}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {filteredSchedule.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={scheduleData.dates.length + 1} className="text-center py-10 text-gray-400 text-sm">
+                                                        {scheduleData.schedule.length > 0 ? 
+                                                            "沒有符合篩選條件的資料，請切換店別或清除搜尋。" : 
+                                                            "讀取到的資料為空，請確認後端程式碼是否正確讀取到第3欄(C欄)的姓名。"}
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                filteredSchedule.map((user) => {
+                                                    const isMe = user.name === currentUser;
+                                                    const rowBg = isMe ? "bg-orange-50/30" : "bg-white";
+                                                    
+                                                    return (
+                                                        <tr key={user.name} className={rowBg}>
+                                                            <td className={`sticky left-0 z-20 ${rowBg} p-0 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]`}>
+                                                                <div className="h-12 flex items-center px-4">
+                                                                    {isMe && <div className="w-1 h-8 bg-orange-500 rounded-full mr-3 absolute left-0"></div>}
+                                                                    <div className="flex items-center h-full w-full">
+                                                                        <span className={`text-sm truncate w-full ${isMe ? 'font-bold text-orange-700' : 'text-gray-700'}`}>
+                                                                            {user.name || "未命名"}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            {scheduleData.dates.map(date => (
+                                                                <td key={`${user.name}-${date}`} className="p-1 border-r border-gray-50 text-center h-12">
+                                                                    <ShiftBadge 
+                                                                        type={user.shifts[date]} 
+                                                                        isEditable={viewMode === 'edit' && isMe}
+                                                                        isSmall={true}
+                                                                        onClick={() => handleShiftUpdate(user.name, date, user.shifts[date])}
+                                                                    />
+                                                                </td>
+                                                            ))}
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                                    <i className="fa-regular fa-calendar-xmark text-3xl mb-2"></i>
+                                    <span className="text-sm">本月尚無班表或讀取失敗</span>
+                                    <span className="text-xs mt-2 text-gray-300">請確認後端網址與 Google Sheet 工作表名稱</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Legend Footer (Fixed on Mobile) */}
+                        <div className="bg-white border-t border-gray-200 p-2 shrink-0 overflow-x-auto no-scrollbar">
+                            <div className="flex justify-center gap-4 min-w-max px-2">
+                                <div className="flex items-center text-xs text-gray-600"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-200 mr-1.5"></span>早班</div>
+                                <div className="flex items-center text-xs text-gray-600"><span className="w-3 h-3 rounded bg-indigo-100 border border-indigo-200 mr-1.5"></span>晚班</div>
+                                <div className="flex items-center text-xs text-gray-600"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200 mr-1.5"></span>全班</div>
+                                <div className="flex items-center text-xs text-gray-600"><span className="w-3 h-3 rounded bg-rose-100 border border-rose-200 mr-1.5"></span>休假</div>
+                            </div>
+                        </div>
+
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
