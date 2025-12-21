@@ -79,7 +79,7 @@
 
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // 模擬數據 (測試用)
+        // 模擬數據
         const MOCK_MONTHS = ["2025-07", "2025-06"];
         const MOCK_DB = {
             "2025-06": {
@@ -168,9 +168,6 @@
             let colorClass = "bg-slate-50 text-slate-300";
             let content = type; 
 
-            // ============================================
-            // 🎨 顏色邏輯 (1200/1230 已加深)
-            // ============================================
             switch(type) {
                 case "1000": // 玫瑰紅
                     colorClass = "bg-rose-100 text-rose-700 border border-rose-200";
@@ -178,21 +175,15 @@
                 case "1030": // 橘色
                     colorClass = "bg-orange-100 text-orange-700 border border-orange-200";
                     break;
-                
-                // ✨ 1200: 改為 Sky-200 (比原本的 Sky-100 更深，更清晰)
-                case "1200": 
+                case "1200": // Sky-200
                     colorClass = "bg-sky-200 text-sky-800 border border-sky-300";
                     break;
-                
-                // ✨ 1230: 改為 Blue-300 (更飽和的藍，與 1200 拉開對比)
-                case "1230": 
+                case "1230": // Blue-300
                     colorClass = "bg-blue-300 text-blue-900 border border-blue-400";
                     break;
-                    
                 case "1300": // 紫色
                     colorClass = "bg-purple-100 text-purple-700 border border-purple-200";
                     break;
-                
                 case "特": // 灰色
                     colorClass = "bg-gray-200 text-gray-700 border border-gray-300 font-bold";
                     break;
@@ -202,12 +193,10 @@
                 case "成功": // 淺綠
                     colorClass = "bg-emerald-100 text-emerald-700 border border-emerald-200";
                     break;
-                
                 case "休": 
                     colorClass = "bg-yellow-100 text-red-500 border border-yellow-200 font-bold"; 
                     content = <i className="fa-solid fa-bed"></i>; 
                     break;
-                
                 default:
                     if(isEditable && !type) {
                         colorClass = "bg-white border border-dashed border-slate-300 active:bg-slate-100 cursor-pointer hover:border-blue-400";
@@ -257,7 +246,7 @@
             const [viewMode, setViewMode] = useState("view"); 
             const [statusMsg, setStatusMsg] = useState("");
             
-            const [filterName, setFilterName] = useState("");
+            // 移除搜尋姓名的 state
             const [filterStore, setFilterStore] = useState("all");
             const [showFilters, setShowFilters] = useState(false);
 
@@ -374,33 +363,39 @@
                 }
             };
 
-            // ✨ 篩選邏輯：依然保留 title 用於判斷，但 UI 不會顯示 title
+            // 篩選邏輯：移除搜尋姓名，只保留分店與職稱判斷
             const filteredSchedule = useMemo(() => {
                 return scheduleData.schedule.filter(user => {
                     if (user.name === '姓名') return false;
                     
-                    const nameMatch = user.name.toLowerCase().includes(filterName.toLowerCase());
                     const storeValue = user.store || user.name;
-                    const titleValue = user.title || ""; // 幕後讀取職位
+                    const titleValue = user.title || ""; 
                     
-                    // 核心邏輯：是店長就顯示，或者符合分店篩選
                     const isManager = titleValue.includes("店長");
                     const storeMatch = filterStore === 'all' || storeValue.includes(filterStore);
                     
-                    return nameMatch && (storeMatch || isManager);
+                    return storeMatch || isManager;
                 });
-            }, [scheduleData.schedule, filterName, filterStore]);
+            }, [scheduleData.schedule, filterStore]);
 
             const userList = useMemo(() => scheduleData.schedule.filter(u => u.name !== '姓名').map(u => u.name), [scheduleData]);
 
-            const scrollToToday = () => {
-                if (!tableContainerRef.current) return;
-                const today = new Date();
-                const todayStr = `${(today.getMonth() + 1)}/${today.getDate()}`;
-                const headers = Array.from(tableContainerRef.current.querySelectorAll('th'));
-                const todayHeader = headers.find(th => th.textContent.includes(todayStr));
-                if (todayHeader) todayHeader.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                else alert("找不到今天的日期");
+            // 修改為「跳至本月份」邏輯
+            const goToCurrentMonth = () => {
+                const now = new Date();
+                // 格式化為 YYYY-MM
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const target = `${year}-${month}`;
+                
+                // 檢查月份列表是否有本月份 (比對字串)
+                const exists = months.includes(target);
+                
+                if (exists) {
+                    setCurrentMonth(target);
+                } else {
+                    alert(`系統中找不到本月份 (${target}) 的班表資料`);
+                }
             };
 
             const formatDate = (dateStr) => {
@@ -452,7 +447,7 @@
                             </div>
                         </div>
                         
-                        {/* Mobile Filters */}
+                        {/* Mobile Filters (Removed Search Input) */}
                         <div className={`md:hidden bg-slate-800 overflow-hidden transition-all duration-300 ease-in-out border-b border-slate-700 ${showFilters ? 'max-h-64' : 'max-h-0'}`}>
                             <div className="p-4 space-y-3">
                                 <div className="flex bg-slate-700 rounded-lg p-1 border border-slate-600">
@@ -466,16 +461,6 @@
                                         </button>
                                     ))}
                                 </div>
-                                <div className="relative">
-                                    <i className="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-sm"></i>
-                                    <input 
-                                        type="text" 
-                                        placeholder="搜尋姓名..." 
-                                        value={filterName}
-                                        onChange={(e) => setFilterName(e.target.value)}
-                                        className="w-full pl-9 pr-3 py-2 text-sm bg-slate-700 border border-slate-600 text-slate-200 rounded-lg focus:outline-none focus:border-blue-500 placeholder-slate-500"
-                                    />
-                                </div>
                                 <div className="flex gap-2">
                                     <select 
                                         value={currentMonth} 
@@ -484,7 +469,7 @@
                                     >
                                         {months.map(m => <option key={m} value={m}>{m}</option>)}
                                     </select>
-                                    <button onClick={scrollToToday} className="bg-slate-700 border border-slate-600 text-blue-400 px-4 py-2 rounded-lg text-sm font-medium">
+                                    <button onClick={goToCurrentMonth} className="bg-slate-700 border border-slate-600 text-blue-400 px-4 py-2 rounded-lg text-sm font-medium">
                                         <i className="fa-solid fa-calendar-day"></i>
                                     </button>
                                 </div>
@@ -494,7 +479,7 @@
 
                     <main className="flex-1 overflow-hidden flex flex-col relative w-full max-w-7xl mx-auto shadow-xl bg-white md:my-4 md:rounded-xl">
                         
-                        {/* Desktop Toolbar */}
+                        {/* Desktop Toolbar (Removed Search Input) */}
                         <div className="hidden md:flex items-center justify-between p-4 bg-white border-b border-slate-200 gap-4">
                             <div className="flex gap-3 items-center">
                                 <div className="flex bg-slate-100 p-1 rounded-lg">
@@ -508,18 +493,8 @@
                                         </button>
                                     ))}
                                 </div>
-                                <div className="relative">
-                                    <i className="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
-                                    <input 
-                                        type="text" 
-                                        placeholder="搜尋姓名" 
-                                        value={filterName}
-                                        onChange={(e) => setFilterName(e.target.value)}
-                                        className="pl-8 pr-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 w-32 focus:w-48 transition-all"
-                                    />
-                                </div>
-                                <button onClick={scrollToToday} className="text-slate-500 hover:text-blue-600 text-sm px-2 transition-colors">
-                                    <i className="fa-solid fa-calendar-day mr-1"></i>跳至今天
+                                <button onClick={goToCurrentMonth} className="text-slate-500 hover:text-blue-600 text-sm px-2 transition-colors">
+                                    <i className="fa-solid fa-calendar-day mr-1"></i>跳至本月份
                                 </button>
                             </div>
 
@@ -637,7 +612,6 @@
                                                                 <div className="h-12 flex items-center px-4 relative">
                                                                     {isMe && <div className="w-1 h-full bg-blue-500 absolute left-0 top-0"></div>}
                                                                     <div className="flex items-center h-full w-full">
-                                                                        {/* ✨ 這裡只顯示 name，不顯示 title */}
                                                                         <span className={`text-sm truncate w-full font-medium ${nameColor}`}>
                                                                             {user.name || "未命名"}
                                                                         </span>
@@ -669,7 +643,7 @@
                             )}
                         </div>
 
-                        {/* Legend Footer (Updated with Deeper Blue) */}
+                        {/* Legend Footer */}
                         <div className="bg-white border-t border-slate-200 p-3 shrink-0 overflow-x-auto no-scrollbar">
                             <div className="flex justify-start md:justify-center gap-4 min-w-max px-2">
                                 <div className="flex items-center text-xs text-slate-600"><span className="w-3 h-3 rounded bg-rose-100 border border-rose-200 mr-1.5"></span>1000</div>
