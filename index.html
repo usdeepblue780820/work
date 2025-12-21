@@ -67,7 +67,7 @@
 
     <script type="text/babel">
         // ================= CONFIGURATION =================
-        // 請確認此處已替換為您部署後的 GAS 網址
+        // 請確認此處已替換為您部署後的 GAS 網址 (務必使用新版本的網址)
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyEwMHBO8jVA0IoS_HdzNFHsyzCz-lxVmW3s9jPcK8gaZDVq1JT5ieeMnQT3V-oNy_U/exec"; 
         
         const STORE_FILTERS = [
@@ -79,13 +79,14 @@
 
         const { useState, useEffect, useMemo, useRef } = React;
 
+        // 模擬數據 (結構已更新以符合後端)
         const MOCK_MONTHS = ["2025-07", "2025-06"];
         const MOCK_DB = {
             "2025-06": {
                 dates: Array.from({length: 30}, (_, i) => `2025/06/${String(i+1).padStart(2, '0')}`),
                 schedule: [
-                    { name: "店長", store: "湖口", shifts: { "2025/06/01": "早", "2025/06/02": "早" } },
-                    { name: "美容師A", store: "湖口", shifts: { "2025/06/01": "晚", "2025/06/02": "晚" } },
+                    { name: "店長", store: "湖口", shifts: { "2025/06/01": {type: "早", note: ""}, "2025/06/02": {type: "早", note: ""} } },
+                    { name: "美容師A", store: "湖口", shifts: { "2025/06/01": {type: "晚", note: ""}, "2025/06/02": {type: "休", note: "事假"} } },
                 ]
             }
         };
@@ -159,7 +160,12 @@
             );
         };
 
-        const ShiftBadge = ({ type, onClick, isEditable, isSmall }) => {
+        const ShiftBadge = ({ data, onClick, isEditable, isSmall }) => {
+            // 解析資料物件
+            const type = data ? data.type : "";
+            const note = data ? data.note : "";
+            const hasNote = note && note.trim() !== "";
+
             let colorClass = "bg-slate-50 text-slate-300";
             let icon = null;
 
@@ -187,17 +193,35 @@
 
             const sizeClass = isSmall ? "w-8 h-8 text-xs" : "w-10 h-10 md:w-11 md:h-11 text-sm";
 
+            // 處理點擊邏輯：編輯模式點擊修改；瀏覽模式有備註點擊查看
+            const handleClick = () => {
+                if (isEditable) {
+                    onClick();
+                } else if (hasNote) {
+                    alert(`📅 休假原因：\n${note}`);
+                }
+            };
+
             return (
                 <div 
-                    onClick={onClick}
+                    onClick={handleClick}
                     className={`
                         ${colorClass} ${sizeClass}
-                        ${isEditable ? 'cursor-pointer' : ''}
+                        ${isEditable || hasNote ? 'cursor-pointer' : ''}
                         rounded-lg flex items-center justify-center transition-all duration-200 mx-auto
-                        shadow-sm
+                        shadow-sm relative
                     `}
+                    title={note} 
                 >
                     {icon ? <i className={`fa-solid ${icon}`}></i> : (isEditable ? <i className="fa-solid fa-plus text-slate-200 scale-75"></i> : "")}
+                    
+                    {/* 紅色小圓點提示 (有備註時顯示) */}
+                    {hasNote && (
+                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-white"></span>
+                        </span>
+                    )}
                 </div>
             );
         };
@@ -279,12 +303,15 @@
             };
 
             // 1. 點擊格子：觸發判斷
-            const initiateShiftUpdate = (name, date, currentType) => {
+            const initiateShiftUpdate = (name, date, currentData) => {
                 if (viewMode === 'view') return;
                 if (name !== currentUser) {
                     alert("您只能畫自己的假喔！");
                     return;
                 }
+
+                // 取得目前的班別類型 (從物件中取出 type，若是 undefined 則為空字串)
+                const currentType = currentData ? currentData.type : "";
 
                 // 情況A：取消休假 (變回空班) -> 不需要原因，直接更新
                 if (currentType === "休") {
@@ -294,7 +321,8 @@
 
                 // 情況B：新增休假 -> 計算目前休假天數
                 const userRecord = scheduleData.schedule.find(u => u.name === name);
-                const currentRestCount = userRecord ? Object.values(userRecord.shifts).filter(v => v === "休").length : 0;
+                // 計算時需檢查 v.type 是否為 "休"
+                const currentRestCount = userRecord ? Object.values(userRecord.shifts).filter(v => v && v.type === "休").length : 0;
                 
                 // 超過 4 天 (準備畫第 5 天) -> 必填
                 const isMandatory = currentRestCount >= 4;
@@ -305,12 +333,18 @@
 
             // 2. 執行更新 (從 Modal 回調或直接呼叫)
             const executeShiftUpdate = async (name, date, newType, reason = "") => {
-                // Optimistic Update
+                // Optimistic Update (需存成物件結構)
                 setScheduleData(prev => ({
                     ...prev,
-                    schedule: prev.schedule.map(u => u.name === name ? {...u, shifts: {...u.shifts, [date]: newType}} : u)
+                    schedule: prev.schedule.map(u => u.name === name ? {
+                        ...u, 
+                        shifts: {
+                            ...u.shifts, 
+                            [date]: { type: newType, note: reason } // 更新為物件
+                        }
+                    } : u)
                 }));
-                setModalConfig({ isOpen: false, name: "", date: "", isMandatory: false }); // 關閉 Modal
+                setModalConfig({ isOpen: false, name: "", date: "", isMandatory: false });
 
                 if (!APPS_SCRIPT_URL) return;
 
@@ -324,7 +358,7 @@
                             name, 
                             date, 
                             type: newType,
-                            reason: reason // 傳送備註
+                            reason: reason 
                         })
                     });
                     const result = await response.json();
@@ -602,7 +636,7 @@
                                                             {scheduleData.dates.map(date => (
                                                                 <td key={`${user.name}-${date}`} className="p-1 border-r border-slate-50 text-center h-12">
                                                                     <ShiftBadge 
-                                                                        type={user.shifts[date]} 
+                                                                        data={user.shifts[date]} 
                                                                         isEditable={viewMode === 'edit' && isMe}
                                                                         isSmall={true}
                                                                         onClick={() => initiateShiftUpdate(user.name, date, user.shifts[date])}
