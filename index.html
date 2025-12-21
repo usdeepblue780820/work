@@ -67,7 +67,6 @@
 
     <script type="text/babel">
         // ================= CONFIGURATION =================
-        // 請確認此處已替換為您部署後的 GAS 網址
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyEwMHBO8jVA0IoS_HdzNFHsyzCz-lxVmW3s9jPcK8gaZDVq1JT5ieeMnQT3V-oNy_U/exec"; 
         
         const STORE_FILTERS = [
@@ -75,11 +74,15 @@
             { id: '湖口', label: '湖口中山' },
             { id: '成功', label: '竹北成功' }
         ];
+
+        // ✨ 設定管理員名稱與密碼
+        const ADMIN_NAME = "陳思蘋";
+        const ADMIN_PASS = "0070";
         // =================================================
 
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // 模擬數據 (包含職稱 title 欄位測試用)
+        // 模擬數據
         const MOCK_MONTHS = ["2025-07", "2025-06"];
         const MOCK_DB = {
             "2025-06": {
@@ -93,7 +96,63 @@
             }
         };
 
-        // 彈跳視窗組件 (畫休原因)
+        // 🔐 管理員登入彈窗 (新增)
+        const AdminLoginModal = ({ isOpen, onClose, onLogin }) => {
+            const [password, setPassword] = useState("");
+            const [error, setError] = useState("");
+            const inputRef = useRef(null);
+
+            useEffect(() => {
+                if (isOpen) {
+                    setPassword("");
+                    setError("");
+                    setTimeout(() => inputRef.current?.focus(), 100);
+                }
+            }, [isOpen]);
+
+            if (!isOpen) return null;
+
+            const handleSubmit = () => {
+                if (password === ADMIN_PASS) {
+                    onLogin();
+                } else {
+                    setError("密碼錯誤");
+                    setPassword("");
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center px-4 modal-overlay">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-xs overflow-hidden modal-content relative z-10">
+                        <div className="bg-slate-800 text-white px-4 py-3 flex justify-between items-center">
+                            <h3 className="font-bold text-lg"><i className="fa-solid fa-user-shield mr-2"></i>管理員驗證</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white"><i className="fa-solid fa-xmark text-xl"></i></button>
+                        </div>
+                        <div className="p-5">
+                            <p className="text-sm text-slate-600 mb-3">請輸入管理員密碼：</p>
+                            <input 
+                                ref={inputRef}
+                                type="password" 
+                                pattern="[0-9]*" 
+                                inputMode="numeric"
+                                value={password}
+                                onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                                className="w-full border rounded-lg px-3 py-2 text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 border-slate-300"
+                                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                                maxLength={4}
+                            />
+                            {error && <p className="text-red-500 text-xs mt-2 text-center font-bold">{error}</p>}
+                            <button onClick={handleSubmit} className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-blue-700 transition-colors">
+                                登入
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 畫休原因彈窗
         const ReasonModal = ({ isOpen, onClose, onConfirm, date, isMandatory }) => {
             const [reason, setReason] = useState("");
             const [error, setError] = useState("");
@@ -111,7 +170,7 @@
 
             const handleSubmit = () => {
                 if (isMandatory && !reason.trim()) {
-                    setError("本月休假已達上限，請務必填寫原因");
+                    setError("此為必填項目");
                     return;
                 }
                 onConfirm(reason);
@@ -134,7 +193,7 @@
                                         <span>本月已畫休 4 天以上，原因為必填。</span>
                                     </div>
                                 ) : (
-                                    <div className="text-xs text-slate-400">本月畫休少於 4 天，原因可選填。</div>
+                                    <div className="text-xs text-slate-400">原因可選填。</div>
                                 )}
                             </div>
                             
@@ -171,30 +230,14 @@
             let content = type; 
 
             switch(type) {
-                case "1000": // 玫瑰紅
-                    colorClass = "bg-rose-100 text-rose-700 border border-rose-200";
-                    break;
-                case "1030": // 橘色
-                    colorClass = "bg-orange-100 text-orange-700 border border-orange-200";
-                    break;
-                case "1200": // Sky-200
-                    colorClass = "bg-sky-200 text-sky-800 border border-sky-300";
-                    break;
-                case "1230": // Blue-300
-                    colorClass = "bg-blue-300 text-blue-900 border border-blue-400";
-                    break;
-                case "1300": // 紫色
-                    colorClass = "bg-purple-100 text-purple-700 border border-purple-200";
-                    break;
-                case "特": // 灰色
-                    colorClass = "bg-gray-200 text-gray-700 border border-gray-300 font-bold";
-                    break;
-                case "會": // 深綠
-                    colorClass = "bg-green-600 text-white border border-green-700 font-bold shadow-sm";
-                    break;
-                case "成功": // 淺綠
-                    colorClass = "bg-emerald-100 text-emerald-700 border border-emerald-200";
-                    break;
+                case "1000": colorClass = "bg-rose-100 text-rose-700 border border-rose-200"; break;
+                case "1030": colorClass = "bg-orange-100 text-orange-700 border border-orange-200"; break;
+                case "1200": colorClass = "bg-sky-200 text-sky-800 border border-sky-300"; break;
+                case "1230": colorClass = "bg-blue-300 text-blue-900 border border-blue-400"; break;
+                case "1300": colorClass = "bg-purple-100 text-purple-700 border border-purple-200"; break;
+                case "特": colorClass = "bg-gray-200 text-gray-700 border border-gray-300 font-bold"; break;
+                case "會": colorClass = "bg-green-600 text-white border border-green-700 font-bold shadow-sm"; break;
+                case "成功": colorClass = "bg-emerald-100 text-emerald-700 border border-emerald-200"; break;
                 case "休": 
                     colorClass = "bg-yellow-100 text-red-500 border border-yellow-200 font-bold"; 
                     content = <i className="fa-solid fa-bed"></i>; 
@@ -245,6 +288,9 @@
             const [scheduleData, setScheduleData] = useState({ dates: [], schedule: [] });
             
             const [currentUser, setCurrentUser] = useState("");
+            const [isAdmin, setIsAdmin] = useState(false); // ✨ 管理員狀態
+            const [showAdminLogin, setShowAdminLogin] = useState(false); // ✨ 登入視窗狀態
+
             const [viewMode, setViewMode] = useState("view"); 
             const [statusMsg, setStatusMsg] = useState("");
             
@@ -298,7 +344,7 @@
                     const data = await response.json();
                     if (data.status === "success") {
                         setScheduleData({ dates: data.dates, schedule: data.schedule });
-                        if(data.schedule.length > 0 && !currentUser) setCurrentUser(data.schedule[0].name);
+                        // 首次載入如果不變更目前選取的使用者
                     } else {
                         setStatusMsg(`讀取失敗: ${data.message}`);
                     }
@@ -309,46 +355,71 @@
                 }
             };
 
-            // ✨ 修改後的點擊觸發邏輯：加入正職排休限制
+            // ✨ 處理使用者切換：若選到 ADMIN_NAME 則跳出驗證
+            const handleUserChange = (e) => {
+                const selectedName = e.target.value;
+                if (selectedName === ADMIN_NAME) {
+                    setShowAdminLogin(true);
+                } else {
+                    setIsAdmin(false); // 切換到其他人時取消管理員權限
+                    setCurrentUser(selectedName);
+                }
+            };
+
+            // ✨ 管理員登入成功
+            const handleAdminSuccess = () => {
+                setIsAdmin(true);
+                setCurrentUser(ADMIN_NAME);
+                setShowAdminLogin(false);
+                setStatusMsg("您已進入管理員模式");
+            };
+
+            // 點擊觸發邏輯
             const initiateShiftUpdate = (name, date, currentData) => {
                 if (viewMode === 'view') return;
-                if (name !== currentUser) {
+                
+                // 🔐 權限檢查：如果是管理員 (isAdmin)，可以改任何人；否則只能改自己
+                if (!isAdmin && name !== currentUser) {
                     alert("您只能畫自己的假喔！");
                     return;
                 }
 
                 const currentType = currentData ? String(currentData.type) : "";
 
-                // 情況A：取消休假 (變回空班) -> 不受限制
+                // 情況A：取消休假 -> 不受限制
                 if (currentType === "休") {
                     executeShiftUpdate(name, date, "");
                     return;
                 }
 
-                // 情況B：新增休假 -> 進行規則檢查
+                // 情況B：新增休假
                 const userRecord = scheduleData.schedule.find(u => u.name === name);
                 const userTitle = userRecord ? (userRecord.title || "") : "";
                 const userStore = userRecord ? (userRecord.store || "") : "";
 
-                // ✨ 規則：如果職稱包含「正職」，檢查同店其他正職是否已休
-                if (userTitle.includes("正職")) {
-                    const othersOnLeave = scheduleData.schedule.filter(u => 
-                        u.name !== name && // 排除自己
-                        u.store === userStore && // 同一間店
-                        (u.title && u.title.includes("正職")) && // 也是正職
-                        (u.shifts[date] && u.shifts[date].type === "休") // 該日期是休假
-                    ).length;
+                // ✨ 規則限制：只有「非管理員」才受限
+                if (!isAdmin) {
+                    // 1. 正職排休限制
+                    if (userTitle.includes("正職")) {
+                        const othersOnLeave = scheduleData.schedule.filter(u => 
+                            u.name !== name && 
+                            u.store === userStore && 
+                            (u.title && u.title.includes("正職")) && 
+                            (u.shifts[date] && u.shifts[date].type === "休")
+                        ).length;
 
-                    // 限制：同一天只能有一位正職休假 (如果已有 >= 1 人，則禁止)
-                    if (othersOnLeave >= 1) {
-                        alert(`❌ 排休限制：\n${userStore}店已有其他正職人員排休，\n同一天只能有一位正職休假。`);
-                        return; // 阻止操作
+                        if (othersOnLeave >= 1) {
+                            alert(`❌ 排休限制：\n${userStore}店已有其他正職人員排休，\n同一天只能有一位正職休假。`);
+                            return; 
+                        }
                     }
                 }
 
-                // 檢查月休天數 (必填備註邏輯)
+                // 計算月休天數
                 const currentRestCount = userRecord ? Object.values(userRecord.shifts).filter(v => v && v.type === "休").length : 0;
-                const isMandatory = currentRestCount >= 4;
+                
+                // ✨ 規則：如果是管理員，原因永遠非必填；否則依天數判斷
+                const isMandatory = isAdmin ? false : (currentRestCount >= 4);
                 
                 setModalConfig({ isOpen: true, name, date, isMandatory });
             };
@@ -398,6 +469,7 @@
                     const storeValue = user.store || user.name;
                     const titleValue = user.title || ""; 
                     
+                    // 店長跨店顯示
                     const isManager = titleValue.includes("店長");
                     const storeMatch = filterStore === 'all' || storeValue.includes(filterStore);
                     
@@ -412,44 +484,26 @@
                 const year = now.getFullYear();
                 const month = String(now.getMonth() + 1).padStart(2, '0');
                 const target = `${year}-${month}`;
-                
                 const exists = months.includes(target);
-                
-                if (exists) {
-                    setCurrentMonth(target);
-                } else {
-                    alert(`系統中找不到本月份 (${target}) 的班表資料`);
-                }
+                if (exists) setCurrentMonth(target);
+                else alert(`系統中找不到本月份 (${target}) 的班表資料`);
             };
 
-            // ✨✨✨ iOS 日期顯示修復核心 ✨✨✨
+            // iOS 日期修復
             const formatDate = (dateStr) => {
-                // 1. 強制將 '-' 替換為 '/'
                 let safeStr = typeof dateStr === 'string' ? dateStr.replace(/-/g, "/").trim() : String(dateStr);
-                
-                // 2. 如果日期字串沒有年份 (例如 "6/1")，Safari 會報錯，手動補上年份
-                // 判斷方式：如果不是以 4 個數字開頭 (如 2025)，就假設缺年份
                 if (!/^\d{4}/.test(safeStr)) {
                      const year = currentMonth ? currentMonth.substring(0, 4) : new Date().getFullYear();
                      safeStr = `${year}/${safeStr}`;
                 }
-
                 const date = new Date(safeStr);
-                
-                // 3. 防呆：如果還是無效，顯示 Err
                 if (isNaN(date.getTime())) {
-                    return (
-                        <div className="flex flex-col items-center justify-center h-full">
-                           <span className="text-[10px] text-red-300">Err</span>
-                        </div>
-                    );
+                    return <div className="flex flex-col items-center justify-center h-full"><span className="text-[10px] text-red-300">Err</span></div>;
                 }
-
                 const day = date.getDate();
                 const month = date.getMonth() + 1;
                 const weekDay = ["日","一","二","三","四","五","六"][date.getDay()];
                 const isWeekend = weekDay === '六' || weekDay === '日';
-                
                 return (
                     <div className="flex flex-col items-center justify-center h-full">
                         <span className="text-[10px] text-slate-400 leading-none mb-1">{month}月</span>
@@ -462,7 +516,13 @@
             return (
                 <div className="flex flex-col h-screen bg-slate-100 text-slate-800 font-sans">
                     
-                    {/* Modal */}
+                    {/* Modals */}
+                    <AdminLoginModal 
+                        isOpen={showAdminLogin}
+                        onClose={() => setShowAdminLogin(false)}
+                        onLogin={handleAdminSuccess}
+                    />
+                    
                     <ReasonModal 
                         isOpen={modalConfig.isOpen}
                         onClose={() => setModalConfig({...modalConfig, isOpen: false})}
@@ -472,13 +532,15 @@
                     />
 
                     {/* Header */}
-                    <header className="bg-slate-800 text-white shadow-lg z-40 shrink-0">
+                    <header className={`text-white shadow-lg z-40 shrink-0 transition-colors duration-500 ${isAdmin ? 'bg-slate-900' : 'bg-slate-800'}`}>
                         <div className="flex items-center justify-between px-4 py-3">
                             <div className="flex items-center gap-2">
-                                <div className="bg-blue-600 w-8 h-8 rounded-lg flex items-center justify-center shadow-inner">
-                                    <i className="fa-solid fa-calendar-check text-white text-sm"></i>
+                                <div className={`${isAdmin ? 'bg-amber-500' : 'bg-blue-600'} w-8 h-8 rounded-lg flex items-center justify-center shadow-inner transition-colors duration-500`}>
+                                    <i className={`fa-solid ${isAdmin ? 'fa-user-shield' : 'fa-calendar-check'} text-white text-sm`}></i>
                                 </div>
-                                <span className="font-bold text-lg tracking-wide text-slate-100">排班系統</span>
+                                <span className="font-bold text-lg tracking-wide text-slate-100">
+                                    {isAdmin ? "排班系統 (管理員)" : "排班系統"}
+                                </span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <button 
@@ -494,7 +556,7 @@
                         </div>
                         
                         {/* Mobile Filters */}
-                        <div className={`md:hidden bg-slate-800 overflow-hidden transition-all duration-300 ease-in-out border-b border-slate-700 ${showFilters ? 'max-h-64' : 'max-h-0'}`}>
+                        <div className={`md:hidden ${isAdmin ? 'bg-slate-900' : 'bg-slate-800'} overflow-hidden transition-all duration-300 ease-in-out border-b border-slate-700 ${showFilters ? 'max-h-64' : 'max-h-0'}`}>
                             <div className="p-4 space-y-3">
                                 <div className="flex bg-slate-700 rounded-lg p-1 border border-slate-600">
                                     {STORE_FILTERS.map(filter => (
@@ -549,7 +611,7 @@
                                     <label className="text-xs text-slate-500 font-bold">我是:</label>
                                     <select 
                                         value={currentUser} 
-                                        onChange={(e) => setCurrentUser(e.target.value)}
+                                        onChange={handleUserChange}
                                         className="bg-transparent text-slate-700 text-sm outline-none font-medium border-none p-0 w-24"
                                     >
                                         <option value="">選擇員工</option>
@@ -583,8 +645,8 @@
 
                         {/* Status Message */}
                         {statusMsg && (
-                            <div className="bg-red-50 text-red-600 px-4 py-2 text-xs flex justify-between items-center border-b border-red-100 animate-pulse">
-                                <span><i className="fa-solid fa-circle-exclamation mr-1"></i>{statusMsg}</span>
+                            <div className="bg-blue-50 text-blue-600 px-4 py-2 text-xs flex justify-between items-center border-b border-blue-100 animate-pulse">
+                                <span><i className="fa-solid fa-circle-info mr-1"></i>{statusMsg}</span>
                                 <button onClick={() => setStatusMsg("")}><i className="fa-solid fa-xmark"></i></button>
                             </div>
                         )}
@@ -592,10 +654,10 @@
                         {/* Mobile Actions Bar */}
                         <div className="md:hidden flex justify-between items-center px-4 py-3 bg-white border-b border-slate-200 shadow-sm shrink-0">
                             <div className="flex items-center gap-2 flex-1 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
-                                <i className="fa-solid fa-user text-slate-400 text-xs"></i>
+                                <i className={`fa-solid ${isAdmin ? 'fa-user-shield text-amber-500' : 'fa-user text-slate-400'} text-xs`}></i>
                                 <select 
                                     value={currentUser} 
-                                    onChange={(e) => setCurrentUser(e.target.value)}
+                                    onChange={handleUserChange}
                                     className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none border-none p-0"
                                 >
                                     <option value="">請選擇您的姓名</option>
@@ -652,13 +714,15 @@
                                                     const rowBg = isMe ? "bg-blue-50/40" : "bg-white";
                                                     const nameColor = isMe ? "text-blue-700" : "text-slate-700";
                                                     
+                                                    // ✨ 管理員模式下，所有人都可以編輯
+                                                    const canEdit = viewMode === 'edit' && (isMe || isAdmin);
+
                                                     return (
                                                         <tr key={user.name} className={`${rowBg} hover:bg-slate-50 transition-colors`}>
                                                             <td className={`sticky left-0 z-20 ${rowBg} p-0 border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]`}>
                                                                 <div className="h-12 flex items-center px-4 relative">
                                                                     {isMe && <div className="w-1 h-full bg-blue-500 absolute left-0 top-0"></div>}
                                                                     <div className="flex items-center h-full w-full">
-                                                                        {/* ✨ 這裡只顯示 name，不顯示 title */}
                                                                         <span className={`text-sm truncate w-full font-medium ${nameColor}`}>
                                                                             {user.name || "未命名"}
                                                                         </span>
@@ -669,7 +733,7 @@
                                                                 <td key={`${user.name}-${date}`} className="p-1 border-r border-slate-50 text-center h-12">
                                                                     <ShiftBadge 
                                                                         data={user.shifts[date]} 
-                                                                        isEditable={viewMode === 'edit' && isMe}
+                                                                        isEditable={canEdit}
                                                                         isSmall={true}
                                                                         onClick={() => initiateShiftUpdate(user.name, date, user.shifts[date])}
                                                                     />
