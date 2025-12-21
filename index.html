@@ -75,7 +75,7 @@
             { id: '成功', label: '竹北成功' }
         ];
 
-        // ✨ 設定管理員名稱與密碼
+        // 🔐 設定管理員名稱與密碼
         const ADMIN_NAME = "陳思蘋";
         const ADMIN_PASS = "0070";
         // =================================================
@@ -96,7 +96,7 @@
             }
         };
 
-        // 🔐 管理員登入彈窗 (新增)
+        // 🔐 管理員登入彈窗
         const AdminLoginModal = ({ isOpen, onClose, onLogin }) => {
             const [password, setPassword] = useState("");
             const [error, setError] = useState("");
@@ -296,6 +296,7 @@
             
             const [filterStore, setFilterStore] = useState("all");
             const [showFilters, setShowFilters] = useState(false);
+            const [zoomLevel, setZoomLevel] = useState(1); // ✨ 新增：檢視比例狀態
 
             const [modalConfig, setModalConfig] = useState({ isOpen: false, name: "", date: "", isMandatory: false });
 
@@ -355,7 +356,7 @@
                 }
             };
 
-            // ✨ 處理使用者切換：若選到 ADMIN_NAME 則跳出驗證
+            // ✨ 處理使用者切換
             const handleUserChange = (e) => {
                 const selectedName = e.target.value;
                 if (selectedName === ADMIN_NAME) {
@@ -378,7 +379,7 @@
             const initiateShiftUpdate = (name, date, currentData) => {
                 if (viewMode === 'view') return;
                 
-                // 🔐 權限檢查：如果是管理員 (isAdmin)，可以改任何人；否則只能改自己
+                // 🔐 權限檢查
                 if (!isAdmin && name !== currentUser) {
                     alert("您只能畫自己的假喔！");
                     return;
@@ -569,6 +570,18 @@
                                         </button>
                                     ))}
                                 </div>
+                                <div className="flex items-center gap-2 bg-slate-700 rounded-lg p-2 border border-slate-600">
+                                    <span className="text-slate-400 text-xs">檢視比例:</span>
+                                    <select 
+                                        value={zoomLevel} 
+                                        onChange={(e) => setZoomLevel(e.target.value)}
+                                        className="flex-1 bg-transparent text-slate-200 text-sm outline-none border-none p-0"
+                                    >
+                                        <option value="1">100%</option>
+                                        <option value="0.75">75%</option>
+                                        <option value="0.5">50%</option>
+                                    </select>
+                                </div>
                                 <div className="flex gap-2">
                                     <select 
                                         value={currentMonth} 
@@ -604,6 +617,19 @@
                                 <button onClick={goToCurrentMonth} className="text-slate-500 hover:text-blue-600 text-sm px-2 transition-colors">
                                     <i className="fa-solid fa-calendar-day mr-1"></i>跳至本月份
                                 </button>
+                                <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                                <div className="flex items-center gap-2">
+                                    <i className="fa-solid fa-magnifying-glass-plus text-slate-400 text-xs"></i>
+                                    <select 
+                                        value={zoomLevel} 
+                                        onChange={(e) => setZoomLevel(e.target.value)}
+                                        className="bg-transparent text-slate-700 text-sm outline-none font-medium border-none p-0 w-20"
+                                    >
+                                        <option value="1">100%</option>
+                                        <option value="0.75">75%</option>
+                                        <option value="0.5">50%</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <div className="flex items-center gap-4">
@@ -683,7 +709,7 @@
 
                             {scheduleData.schedule.length > 0 ? (
                                 <div ref={tableContainerRef} className="h-full overflow-auto custom-scroll">
-                                    <table className="border-collapse w-full min-w-max">
+                                    <table className="border-collapse w-full min-w-max" style={{ zoom: zoomLevel }}>
                                         <thead className="sticky top-0 z-30 bg-slate-50 shadow-sm">
                                             <tr>
                                                 <th className="sticky left-0 z-40 bg-slate-50 p-0 border-b border-slate-200 border-r min-w-[100px] w-[100px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
