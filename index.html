@@ -3,11 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表管理系統</title>
+    <title>排班管理系統</title>
+    <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
@@ -296,7 +300,7 @@
             
             const [filterStore, setFilterStore] = useState("all");
             const [showFilters, setShowFilters] = useState(false);
-            const [zoomLevel, setZoomLevel] = useState(1); // ✨ 新增：檢視比例狀態
+            const [zoomLevel, setZoomLevel] = useState(1); // ✨ 檢視比例狀態
 
             const [modalConfig, setModalConfig] = useState({ isOpen: false, name: "", date: "", isMandatory: false });
 
@@ -307,8 +311,22 @@
 
             const fetchMonths = async () => {
                 setInitLoading(true);
+                
+                // 1. 取得當前月份字串 (YYYY-MM)，用於自動跳轉
+                const now = new Date();
+                const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
                 if (!APPS_SCRIPT_URL) {
-                    setTimeout(() => { setMonths(MOCK_MONTHS); setCurrentMonth(MOCK_MONTHS[0]); setInitLoading(false); }, 600);
+                    setTimeout(() => {
+                        setMonths(MOCK_MONTHS);
+                        // Mock 自動跳轉邏輯
+                        if (MOCK_MONTHS.includes(currentYm)) {
+                            setCurrentMonth(currentYm);
+                        } else {
+                            setCurrentMonth(MOCK_MONTHS[0]);
+                        }
+                        setInitLoading(false);
+                    }, 600);
                     return;
                 }
                 try {
@@ -316,7 +334,18 @@
                     const data = await response.json();
                     if (data.status === "success") {
                         setMonths(data.months);
-                        if (data.months.length > 0) setCurrentMonth(data.months[0]);
+                        
+                        // 2. 正式環境自動跳轉邏輯
+                        if (data.months.includes(currentYm)) {
+                            // A. 優先跳轉到「當天所在的月份」
+                            setCurrentMonth(currentYm);
+                        } else if (data.currentMonth && data.months.includes(data.currentMonth)) {
+                            // B. 其次跳轉到「後端建議的月份」
+                            setCurrentMonth(data.currentMonth);
+                        } else if (data.months.length > 0) {
+                            // C. 最後 fallback 到列表第一個
+                            setCurrentMonth(data.months[0]);
+                        }
                     } else {
                         setStatusMsg("無法讀取月份列表");
                     }
@@ -540,7 +569,7 @@
                                     <i className={`fa-solid ${isAdmin ? 'fa-user-shield' : 'fa-calendar-check'} text-white text-sm`}></i>
                                 </div>
                                 <span className="font-bold text-lg tracking-wide text-slate-100">
-                                    {isAdmin ? "班表系統 (管理員)" : "班表系統"}
+                                    {isAdmin ? "排班系統 (管理員)" : "排班系統"}
                                 </span>
                             </div>
                             <div className="flex items-center gap-3">
@@ -805,5 +834,3 @@
     </script>
 </body>
 </html>
-
-
